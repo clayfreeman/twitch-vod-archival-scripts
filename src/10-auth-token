@@ -1,0 +1,102 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * @file
+ * This file processes 'auth.token' event notifications.
+ *
+ * When one of these events is encountered, the payload will be decrypted and
+ * stored in a file for later use.
+ *
+ * Check the CONFIG section before using this script.
+ */
+
+////////////////////////////////////////////////////////////////////////////////
+//                                  CONFIG                                    //
+////////////////////////////////////////////////////////////////////////////////
+
+// Set the encryption key used to decrypt the payload.
+$encryption_key = \getenv('AUTH_TOKEN_ENCRYPTION_KEY') ?: '';
+
+// Set the file path used to store the decrypted payload.
+$output = "{$_SERVER['HOME']}/.auth-token";
+
+////////////////////////////////////////////////////////////////////////////////
+//                                  SCRIPT                                    //
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Decrypt the supplied ciphertext using AES-256-GCM / PBKDF2-HMAC-SHA256.
+ *
+ * @param string $salt
+ *   The base64-encoded salt to use to derive the secret.
+ * @param string $encryption_key
+ *   The encryption key to use to derive the secret.
+ * @param int $iterations
+ *   The number of iterations used to derive the secret.
+ * @param string $iv
+ *   The base64-encoded initialization vector.
+ * @param string $ciphertext
+ *   The base64-encoded ciphertext to decrypt.
+ *
+ * @return string|false
+ *   The decrypted message, or FALSE on failure.
+ */
+function aes256gcm_decrypt(string $salt, string $encryption_key, int $iterations, string $iv, string $ciphertext) {
+  // Attempt to base64-decode the inputs.
+  $ciphertext = \base64_decode($ciphertext);
+  $salt = \base64_decode($salt);
+  $iv = \base64_decode($iv);
+
+  if (!\in_array(FALSE, [$ciphertext, $salt, $iv], TRUE)) {
+    // Derive the secret using the specified number of iterations.
+    $secret = \hash_pbkdf2('sha256', $encryption_key, $salt, $iterations, binary: true);
+
+    // Attempt to extract the tag from the ciphertext.
+    @[$ciphertext, $tag] = \preg_split('/(?=.{16}$)/', $ciphertext, 2);
+
+    if (\strlen($tag) === 16) {
+      // Decrypt the ciphertext using the secret, IV, and tag.
+      return \openssl_decrypt($ciphertext, 'AES-256-GCM', $secret, \OPENSSL_RAW_DATA, $iv, $tag);
+    }
+  }
+
+  return FALSE;
+}
+
+// Attempt to process an event notification.
+$notification = @\file_get_contents('php://stdin');
+$notification = @\json_decode($notification !== FALSE ? $notification : '');
+
+// Ensure that we only process 'auth.token' event notifications.
+if ($notification?->subscription?->type === 'auth.token') {
+  // Ensure that an encryption key was specified.
+  if (\strlen($encryption_key ?? '') === 0) {
+    \fputs(\STDERR, 'Error: Encryption key required for this script.' . \PHP_EOL);
+    exit(1);
+  }
+
+  // Ensure that the output file is writable.
+  if (!\is_resource($fh = \fopen($output, 'c'))) {
+    \fputs(\STDERR, 'Error: Cannot write to output file.' . \PHP_EOL);
+    exit(1);
+  }
+
+  $message = \aes256gcm_decrypt(
+    $notification->event?->salt,
+    $encryption_key,
+    $notification->event?->iterations,
+    $notification->event?->iv,
+    $notification->event?->ciphertext,
+  );
+
+  // Check if the file contents should be replaced.
+  if ($message !== FALSE) {
+    \ftruncate($fh, 0);
+    \fwrite($fh, $message);
+    \fflush($fh);
+  }
+
+  \fputs(\STDERR, "Updated 'auth-token' cookie value." . \PHP_EOL);
+  \fclose($fh);
+}
