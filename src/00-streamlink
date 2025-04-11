@@ -15,32 +15,37 @@ set -euo pipefail
 #                                   CONFIG                                     #
 ################################################################################
 
-# Configure where downloaded files will be saved.
-DOWNLOAD_DIR="$HOME/archives"
-
-# Configure the naming pattern to use for downloaded files.
-NAME='{time:%Y}/{time:%m}/{time:%d}/[{time:%H:%M:%S}] {title} ({id}).ts'
-
 # Configure the OAuth token to pass to the Twitch API (optional).
 #
 # See https://github.com/clayfreeman/twitch-auth-token-sync for a way that
 # developers can automatically get their 'auth-token' cookie value.
 AUTH_TOKEN=$(cat "$HOME/.auth-token" 2>/dev/null || true)
 
-# Configure the default arguments for Streamlink.
-# The output path will be nested beneath "$FINISHED_DIR/$STREAM".
+# Configure where downloaded files will be saved.
+DOWNLOAD_DIR="$HOME/archives"
+
+# Configure the maximum number of download attempts.
+MAX_ATTEMPTS=3
+
+# Configure the naming pattern to use for downloaded files.
+NAME='{time:%Y}/{time:%m}/{time:%d}/[{time:%H:%M:%S}] {title} ({id}).ts'
+
+# Configure the arguments for Streamlink.
+# The output path will be nested beneath "$DOWNLOAD_DIR/$STREAM".
 STREAMLINK_ARGS=(
   --default-stream=best
-  --force
   --logdateformat='%Y-%m-%dT%H:%M:%S'
   --logformat='[{asctime}][{name}][{levelname}] {message}'
+  --webbrowser=no
+)
+STREAMLINK_ARGS_DOWNLOAD=(
+  --force
   --output="$NAME"
   --progress=no
   --retry-max=3
   --retry-open=3
   --retry-streams=3
   --twitch-disable-ads
-  --webbrowser=no
 )
 
 ################################################################################
@@ -49,25 +54,37 @@ STREAMLINK_ARGS=(
 
 if STREAM=$(jq -cer 'select(.subscription.type == "stream.online") | .event.broadcaster_user_login')
 then
-  if ! mkdir -p "$DOWNLOAD_DIR" || ! [ -w "$DOWNLOAD_DIR" ]
+  if [ -z "${DOWNLOAD_DIR:-}" ]
   then
-    echo "Error: The configured download directory is not writable." >&2
+    echo "Error: The required DOWNLOAD_DIR variable is missing." >&2
     exit 1
   fi
 
-  if [ -z "$NAME" ]
+  if ! [[ "${MAX_ATTEMPTS:-}" =~ ^[0-9]+$ ]] || (( MAX_ATTEMPTS <= 0 ))
+  then
+    echo "Error: MAX_ATTEMPTS must be a positive integer." >&2
+    exit 1
+  fi
+
+  if [ -z "${NAME:-}" ]
   then
     echo "Error: The required NAME variable is missing." >&2
     exit 1
   fi
 
-  if [ -z "$STREAMLINK_ARGS" ]
+  if [ -z "${STREAMLINK_ARGS:-}" ]
   then
     echo "Error: The required STREAMLINK_ARGS variable is missing." >&2
     exit 1
   fi
 
-  OUTPUT_DIR="$DOWNLOAD_DIR/$STREAM"
+  if [ -z "${STREAMLINK_ARGS_DOWNLOAD:-}" ]
+  then
+    echo "Error: The required STREAMLINK_ARGS_DOWNLOAD variable is missing." >&2
+    exit 1
+  fi
+
+  OUTPUT="$DOWNLOAD_DIR/$STREAM"
 
   LOCKFILE="$HOME/.$STREAM.lock"
   LOGFILE="$HOME/streamlink.log"
@@ -79,8 +96,16 @@ then
     STREAMLINK_ARGS+=(--twitch-api-header=Authorization="OAuth $AUTH_TOKEN")
   fi
 
-  mkdir -p "$OUTPUT_DIR"
-  cd "$OUTPUT_DIR"
+  STREAMLINK_ARGS+=(--url="$URL")
+  STREAMLINK_ARGS_DOWNLOAD+=("${STREAMLINK_ARGS[@]}")
+
+  if ! mkdir -p "$OUTPUT" || ! [ -w "$OUTPUT" ] || ! [ -x "$OUTPUT" ]
+  then
+    echo "Error: The output directory is not suitable." >&2
+    exit 1
+  fi
+
+  cd "$OUTPUT"
 
   exec {LOCK}<>"$LOCKFILE"
   flock -n $LOCK
@@ -88,16 +113,30 @@ then
 
   exec &> >(tee -a "$LOGFILE")
 
-  echo "Beginning download of '$URL' ..." >&2
-  streamlink "${STREAMLINK_ARGS[@]}" --url="$URL" || echo "Error: Streamlink exited with non-zero code: $?" >&2
+  ATTEMPTS=0
+  while true
+  do
+    echo "Downloading '$URL' [$((++ATTEMPTS))/$MAX_ATTEMPTS] ..." >&2
+    streamlink "${STREAMLINK_ARGS_DOWNLOAD[@]}" || echo "Error: '$URL' download exited with non-zero code: $?" >&2
+
+    if [ "$ATTEMPTS" -ge "$MAX_ATTEMPTS" ]
+    then
+      echo "'$URL' download attempts exhausted; exiting ..." >&2
+      break
+    elif ! streamlink "${STREAMLINK_ARGS[@]}" --stream-url &>/dev/null
+    then
+      echo "'$URL' is now offline." >&2
+      break
+    fi
+  done
 
   shopt -s globstar nullglob
   for INPUT in **/*.ts
   do
     OUTPUT="${INPUT%.ts}.mp4"
 
-    echo "Changing MPEG-TS container format of '$INPUT' to MPEG-4 ..." >&2
-    ffmpeg -i "$INPUT" -c copy "$OUTPUT" || echo "Error: FFmpeg exited with non-zero code: $?" >&2
+    echo "Remuxing '$INPUT' from MPEG-TS to MPEG-4 ..." >&2
+    ffmpeg -i "$INPUT" -c copy "$OUTPUT" || echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2
 
     rm -f "$INPUT"
   done
