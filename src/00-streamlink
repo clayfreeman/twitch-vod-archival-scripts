@@ -48,6 +48,12 @@ STREAMLINK_ARGS_DOWNLOAD=(
   --twitch-disable-ads
 )
 
+# Configure the amount of time to wait for a lock (in seconds).
+#
+# This is useful to debounce multiple 'stream.online' events, while still
+# affording some level of reliability for temporary disconnects.
+TIMEOUT=300
+
 ################################################################################
 #                                   SCRIPT                                     #
 ################################################################################
@@ -107,11 +113,9 @@ then
 
   cd "$OUTPUT"
 
-  exec {LOCK}<>"$LOCKFILE"
-  flock -n $LOCK
-  trap 'rm -f "$LOCKFILE"' EXIT
-
   exec &> >(tee -a "$LOGFILE")
+  exec {LOCK}<>"$LOCKFILE"
+  flock -w "$TIMEOUT" $LOCK
 
   ATTEMPTS=0
   while true
@@ -140,4 +144,7 @@ then
 
     rm -f "$INPUT"
   done
+
+  echo 'Pruning short MPEG-4 files ...' >&2
+  find -type f -name '*.mp4' -size -128M -print -delete
 fi
