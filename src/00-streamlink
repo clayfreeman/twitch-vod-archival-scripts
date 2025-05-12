@@ -156,6 +156,16 @@ then
 
         echo "Renaming '$SRC' to '$DST' ..." >&2
         mv "$SRC" "$DST"
+      elif [ "${#FILES[@]}" -gt 1 ]
+      then
+        for SRC in "${FILES[@]}"
+        do
+          SFX="$(expr match "$SRC" '.*\(\.part[0-3]\.mp4\)')"
+          DST="${PREFIX}${SFX}"
+
+          echo "Renaming '$SRC' to '$DST' ..." >&2
+          mv "$SRC" "$DST"
+        done
       fi
     fi
 
