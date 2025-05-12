@@ -134,7 +134,11 @@ then
   done
 
   shopt -s globstar nullglob
-  for INPUT in ./**/*.ts
+  INPUTS=(./**/*.ts)
+  sleep 1
+  exec {LOCK}>&-
+
+  for INPUT in "${INPUTS[@]}"
   do
     if [ $(echo "$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$INPUT") >= 30" | bc) -eq 1 ]
     then
