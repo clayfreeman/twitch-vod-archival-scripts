@@ -92,7 +92,7 @@ then
   OUTDIR="$DOWNLOAD_DIR/$STREAM"
 
   LOCKFILE="$HOME/.$STREAM.lock"
-  LOGFILE="$HOME/streamlink.log"
+  LOGFILE="$HOME/$STREAM.log"
 
   URL="https://www.twitch.tv/$STREAM"
 
