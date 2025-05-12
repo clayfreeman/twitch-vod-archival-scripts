@@ -27,8 +27,8 @@ DOWNLOAD_DIR="$HOME/archives"
 # Configure the maximum number of download attempts.
 MAX_ATTEMPTS=3
 
-# Configure the naming pattern to use for downloaded files.
-NAME='{time:%Y}/{time:%m}/{time:%d}/[{time:%H:%M:%S}] {title} ({id}).ts'
+# Configure the naming pattern to use for downloaded files (without extension).
+NAME='{time:%Y}/{time:%m}/{time:%d}/[{time:%H:%M:%S}] {title} ({id})'
 
 # Configure the arguments for Streamlink.
 # The output path will be nested beneath "$DOWNLOAD_DIR/$STREAM".
@@ -40,7 +40,6 @@ STREAMLINK_ARGS=(
 )
 STREAMLINK_ARGS_DOWNLOAD=(
   --force
-  --output="$NAME"
   --progress=no
   --retry-max=3
   --retry-open=3
@@ -90,7 +89,7 @@ then
     exit 1
   fi
 
-  OUTPUT="$DOWNLOAD_DIR/$STREAM"
+  OUTDIR="$DOWNLOAD_DIR/$STREAM"
 
   LOCKFILE="$HOME/.$STREAM.lock"
   LOGFILE="$HOME/streamlink.log"
@@ -103,15 +102,15 @@ then
   fi
 
   STREAMLINK_ARGS+=(--url="$URL")
-  STREAMLINK_ARGS_DOWNLOAD+=("${STREAMLINK_ARGS[@]}")
+  STREAMLINK_ARGS_DOWNLOAD+=("${STREAMLINK_ARGS[@]}" --output="$NAME".ts)
 
-  if ! mkdir -p "$OUTPUT" || ! [ -w "$OUTPUT" ] || ! [ -x "$OUTPUT" ]
+  if ! mkdir -p "$OUTDIR" || ! [ -w "$OUTDIR" ] || ! [ -x "$OUTDIR" ]
   then
     echo "Error: The output directory is not suitable." >&2
     exit 1
   fi
 
-  cd "$OUTPUT"
+  cd "$OUTDIR"
 
   exec &> >(tee -a "$LOGFILE")
   exec {LOCK}<>"$LOCKFILE"
