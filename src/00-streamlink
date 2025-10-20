@@ -146,7 +146,7 @@ then
       PREFIX="${INPUT%.ts}"
 
       echo "Remuxing '$INPUT' from MPEG-TS to MPEG-4 ..." >&2
-      ffmpeg -i "$INPUT" -t 172800 -c copy -f segment -reset_timestamps 1 -segment_time 43200 "$CHKSUM".part%d.mp4 || echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2
+      ffmpeg -i "$INPUT" -t 172800 -c copy -f segment -movflags +faststart -reset_timestamps 1 -segment_time 43200 "$CHKSUM".part%d.mp4 || echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2
 
       FILES=("$CHKSUM".part[0-3].mp4)
       if [ "${#FILES[@]}" -eq 1 ]
