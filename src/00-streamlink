@@ -155,8 +155,10 @@ then
         DST="${PREFIX}.mp4"
 
         echo "Applying qt-faststart to '$SRC' at '$DST' ..." >&2
-        qt-faststart "$SRC" "$DST"
+        qt-faststart "$SRC" "$SRC.faststart"
+
         rm "$SRC"
+        mv "$SRC.faststart" "$DST"
       elif [ "${#FILES[@]}" -gt 1 ]
       then
         for SRC in "${FILES[@]}"
@@ -165,8 +167,10 @@ then
           DST="${PREFIX}${SFX}"
 
           echo "Applying qt-faststart to '$SRC' at '$DST' ..." >&2
-          qt-faststart "$SRC" "$DST"
+          qt-faststart "$SRC" "$SRC.faststart"
+
           rm "$SRC"
+          mv "$SRC.faststart" "$DST"
         done
       fi
     fi
