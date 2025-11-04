@@ -44,7 +44,6 @@ STREAMLINK_ARGS_DOWNLOAD=(
   --retry-max=3
   --retry-open=3
   --retry-streams=3
-  --twitch-disable-ads
 )
 
 # Configure the amount of time to wait for a lock (in seconds).
