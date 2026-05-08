@@ -116,6 +116,18 @@ then
   flock -w "$TIMEOUT" $LOCK
 
   ATTEMPTS=0
+  while [ "$ATTEMPTS" -lt "$MAX_ATTEMPTS" ]
+  do
+    echo "Waiting for '$STREAM' stream metadata [$((++ATTEMPTS))/$MAX_ATTEMPTS] ..." >&2
+    if streamlink --json --url="$URL" | jq -cer 'select(.metadata.id != null)' &>/dev/null
+    then
+      break
+    fi
+
+    sleep 3
+  done
+
+  ATTEMPTS=0
   while true
   do
     echo "Downloading '$URL' [$((++ATTEMPTS))/$MAX_ATTEMPTS] ..." >&2
