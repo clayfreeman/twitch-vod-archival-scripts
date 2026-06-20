@@ -160,7 +160,7 @@ then
       TMP=$(mktemp ./.temp.XXXXXX)
 
       echo "Remuxing '$INPUT' from MPEG-TS to MPEG-4 ..." >&2
-      ffmpeg -i "$INPUT" -c copy -f mp4 -movflags +faststart "$TMP" || { echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2; rm -f "$TMP"; }
+      ffmpeg -nostdin -y -i "$INPUT" -c copy -f mp4 -movflags +faststart "$TMP" || { echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2; rm -f "$TMP"; }
 
       if [ -f "$TMP" ]
       then
