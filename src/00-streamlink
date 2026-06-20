@@ -156,36 +156,15 @@ then
 
     if [[ "$DURATION" =~ ^[0-9]+$ ]] && (( DURATION >= 60 ))
     then
-      CHKSUM="./.temp.$(sha256sum <<<"$INPUT" | cut -d' ' -f1)"
-      PREFIX="${INPUT%.ts}"
+      DST="${INPUT%.ts}.mp4"
+      TMP=$(mktemp ./.temp.XXXXXX)
 
       echo "Remuxing '$INPUT' from MPEG-TS to MPEG-4 ..." >&2
-      ffmpeg -i "$INPUT" -t 172800 -c copy -f segment -reset_timestamps 1 -segment_time 43200 "$CHKSUM".part%d.mp4 || echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2
+      ffmpeg -i "$INPUT" -c copy -f mp4 -movflags +faststart "$TMP" || { echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2; rm -f "$TMP"; }
 
-      FILES=("$CHKSUM".part[0-3].mp4)
-      if [ "${#FILES[@]}" -eq 1 ]
+      if [ -f "$TMP" ]
       then
-        SRC="${FILES[@]}"
-        DST="${PREFIX}.mp4"
-
-        echo "Applying qt-faststart to '$SRC' at '$DST' ..." >&2
-        qt-faststart "$SRC" "$SRC.faststart"
-
-        rm "$SRC"
-        mv "$SRC.faststart" "$DST"
-      elif [ "${#FILES[@]}" -gt 1 ]
-      then
-        for SRC in "${FILES[@]}"
-        do
-          SFX="$(expr match "$SRC" '.*\(\.part[0-3]\.mp4\)')"
-          DST="${PREFIX}${SFX}"
-
-          echo "Applying qt-faststart to '$SRC' at '$DST' ..." >&2
-          qt-faststart "$SRC" "$SRC.faststart"
-
-          rm "$SRC"
-          mv "$SRC.faststart" "$DST"
-        done
+        mv "$TMP" "$DST"
       fi
     fi
 
