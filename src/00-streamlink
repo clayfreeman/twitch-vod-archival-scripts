@@ -144,10 +144,16 @@ then
     fi
   done
 
+  exec {LOCK}>&-
+
+  REMUX_LOCKFILE="$HOME/.$STREAM.remux.lock"
+
+  exec {REMUX_LOCK}<>"$REMUX_LOCKFILE"
+  flock $REMUX_LOCK
+
   shopt -s globstar nullglob
   INPUTS=(./**/*.ts)
   sleep 1
-  exec {LOCK}>&-
 
   for INPUT in "${INPUTS[@]}"
   do
@@ -156,17 +162,29 @@ then
 
     if [[ "$DURATION" =~ ^[0-9]+$ ]] && (( DURATION >= 60 ))
     then
-      DST="${INPUT%.ts}.mp4"
-      TMP=$(mktemp ./.temp.XXXXXX)
+      TMPPATH=./.temp.XXXXXX
 
-      chmod +r "$TMP" || true
+      if [ -d "$HOME/scratch" ]
+      then
+        TMPPATH="$HOME/scratch/.temp.XXXXXX"
+      fi
+
+      DST="${INPUT%.ts}.mp4"
+      TMP=$(mktemp "$TMPPATH")
 
       echo "Remuxing '$INPUT' from MPEG-TS to MPEG-4 ..." >&2
-      ffmpeg -nostdin -readrate 10 -y -i "$INPUT" -c copy -f mp4 -movflags +faststart "$TMP" || { echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2; truncate -s 0 "$TMP" || true; rm -f "$TMP"; }
+      ffmpeg -nostdin -y -i "$INPUT" -c copy -f mp4 -movflags +default_base_moof+empty_moov+frag_keyframe+global_sidx "$TMP" || { echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2; truncate -s 0 "$TMP" || true; rm -f "$TMP"; }
 
       if [ -f "$TMP" ]
       then
-        mv "$TMP" "$DST"
+        if [ -d "$HOME/scratch" ]
+        then
+          INT=$(dirname "$DST")/.$(basename "$DST").temp
+
+          pv --interval=30 --rate-limit=10M < "$TMP" > "$INT" && mv "$INT" "$DST" || { echo "Error: '$INPUT' copy exited with non-zero code: $?" >&2; truncate -s 0 "$TMP" "$INT" "$DST" || true; rm -f "$TMP" "$INT" "$DST"; }
+        else
+          mv "$TMP" "$DST" || { echo "Error: '$INPUT' move exited with non-zero code: $?" >&2; truncate -s 0 "$TMP" "$DST" || true; rm -f "$TMP" "$DST"; }
+        fi
       fi
     fi
 
@@ -174,4 +192,6 @@ then
     truncate -s 0 "$INPUT" || true
     rm -f "$INPUT"
   done
+
+  exec {REMUX_LOCK}>&-
 fi
