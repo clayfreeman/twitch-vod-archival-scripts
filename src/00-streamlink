@@ -162,10 +162,12 @@ then
 
     if [[ "$DURATION" =~ ^[0-9]+$ ]] && (( DURATION >= 60 ))
     then
+      PV_ARGS=()
       TMPPATH=./.temp.XXXXXX
 
       if [ -d "$HOME/scratch" ]
       then
+        PV_ARGS=(--rate-limit=10M)
         TMPPATH="$HOME/scratch/.temp.XXXXXX"
       fi
 
@@ -173,7 +175,7 @@ then
       TMP=$(mktemp "$TMPPATH")
 
       echo "Remuxing '$INPUT' from MPEG-TS to MPEG-4 ..." >&2
-      ffmpeg -nostdin -y -i "$INPUT" -c copy -f mp4 -movflags +default_base_moof+empty_moov+frag_keyframe+global_sidx "$TMP" || { echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2; truncate -s 0 "$TMP" || true; rm -f "$TMP"; }
+      pv --quiet "${PV_ARGS[@]}" < "$INPUT" | ffmpeg -nostdin -y -i - -c copy -f mp4 -movflags +default_base_moof+empty_moov+frag_keyframe+global_sidx "$TMP" || { echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2; truncate -s 0 "$TMP" || true; rm -f "$TMP"; }
 
       if [ -f "$TMP" ]
       then
