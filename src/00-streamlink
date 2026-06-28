@@ -162,7 +162,7 @@ then
       chmod +r "$TMP" || true
 
       echo "Remuxing '$INPUT' from MPEG-TS to MPEG-4 ..." >&2
-      ffmpeg -nostdin -y -i "$INPUT" -c copy -f mp4 -movflags +faststart "$TMP" || { echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2; rm -f "$TMP"; }
+      ffmpeg -nostdin -y -i "$INPUT" -c copy -f mp4 -movflags +faststart "$TMP" || { echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2; truncate -s 0 "$TMP" || true; rm -f "$TMP"; }
 
       if [ -f "$TMP" ]
       then
@@ -171,6 +171,7 @@ then
     fi
 
     echo "Removing '$INPUT' ..." >&2
+    truncate -s 0 "$INPUT" || true
     rm -f "$INPUT"
   done
 fi
