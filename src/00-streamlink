@@ -184,6 +184,12 @@ then
           INT=$(dirname "$DST")/.$(basename "$DST").temp
 
           pv --interval=30 --rate-limit=10M < "$TMP" > "$INT" && mv "$INT" "$DST" || { echo "Error: '$INPUT' copy exited with non-zero code: $?" >&2; truncate -s 0 "$TMP" "$INT" "$DST" || true; rm -f "$TMP" "$INT" "$DST"; }
+
+          if [ -f "$TMP" ]
+          then
+            truncate -s 0 "$TMP" || true
+            rm -f "$TMP"
+          fi
         else
           mv "$TMP" "$DST" || { echo "Error: '$INPUT' move exited with non-zero code: $?" >&2; truncate -s 0 "$TMP" "$DST" || true; rm -f "$TMP" "$DST"; }
         fi
