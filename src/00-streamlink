@@ -194,6 +194,11 @@ then
           mv "$TMP" "$DST" || { echo "Error: '$INPUT' move exited with non-zero code: $?" >&2; truncate -s 0 "$TMP" "$DST" || true; rm -f "$TMP" "$DST"; }
         fi
       fi
+
+      if [ -f "$DST" ]
+      then
+        chmod +r "$DST" || true
+      fi
     fi
 
     echo "Removing '$INPUT' ..." >&2
