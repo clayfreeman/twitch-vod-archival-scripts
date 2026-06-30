@@ -175,7 +175,7 @@ then
       TMP=$(mktemp "$TMPPATH")
 
       echo "Remuxing '$INPUT' from MPEG-TS to MPEG-4 ..." >&2
-      ffmpeg -nostdin -readrate 10 -y -i "$INPUT" -c copy -f mp4 -movflags +default_base_moof+empty_moov+frag_keyframe+global_sidx "$TMP" || { echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2; truncate -s 0 "$TMP" || true; rm -f "$TMP"; }
+      pv --quiet "${PV_ARGS[@]}" < "$INPUT" | ffmpeg -nostdin -y -i - -c copy -f mp4 -bsf:a aac_adtstoasc -movflags +default_base_moof+empty_moov+frag_keyframe+global_sidx "$TMP" || { echo "Error: '$INPUT' remux exited with non-zero code: $?" >&2; truncate -s 0 "$TMP" || true; rm -f "$TMP"; }
 
       if [ -f "$TMP" ]
       then
